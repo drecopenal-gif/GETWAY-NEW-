@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0b1e">
+<title>PayQuick — Secure Checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!-- QR Generator & Decoder Libraries for Auto-Refresh & Direct UPI Open -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+@property --a{syntax:'<angle>';initial-value:0deg;inherits:false}
+:root{
+  --bg:#0a0b1e; --s1:#12142b; --s2:#1a1d3a; --s3:#232749;
+  --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+  --text:#f5f3ff; --muted:#b3b5d6; --faint:#7d80a8;
+  --accent:#ffb938; --accent2:#ffc95e; --ink:#2a1800;
+  --ok:#4ff0b7; --bad:#ff7d8c; --violet:#8f7bff;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'Geist',system-ui,-apple-system,sans-serif;
+  --mono:'Fragment Mono',ui-monospace,monospace;
+  --out:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{font-size:16px}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100dvh;display:flex;justify-content:center;align-items:center;padding:28px 16px;overflow-x:hidden;-webkit-font-smoothing:antialiased;line-height:1.5}
+button,input{font-family:inherit}
+.hidden{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* background & shell */
+.bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(110% 70% at 10% 0%,rgba(255,185,56,.13),transparent 55%),radial-gradient(90% 70% at 90% 100%,rgba(143,123,255,.17),transparent 55%),var(--bg)}
+.shell{width:100%;max-width:460px;position:relative;background:linear-gradient(180deg,#1a1d3a,#0d0e24);border:1px solid rgba(255,185,56,.16);border-radius:30px;box-shadow:0 18px 44px -22px rgba(0,0,0,.85);overflow:hidden;animation:shellIn .9s var(--out) both}
+@keyframes shellIn{from{opacity:0;transform:translateY(24px) scale(.97)}}
+.shell::after{content:'';position:absolute;top:0;left:14%;right:14%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent)}
+.inner{padding:34px 26px 26px}
+.mute{position:absolute;top:16px;right:16px;z-index:5;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--muted);font-size:16px;cursor:pointer;transition:.25s var(--out)}
+.mute:hover{color:var(--text);border-color:var(--line2);transform:scale(1.08)}
+
+/* typography */
+.kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;font-size:14px;font-weight:600;color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.kicker i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px var(--ok);animation:dot 2s ease-in-out infinite}
+@keyframes dot{50%{opacity:.55;transform:scale(1.25)}}
+.display{font-family:var(--serif);font-weight:400;font-size:clamp(40px,12vw,52px);line-height:1;letter-spacing:-.025em;margin:20px 0 12px;color:var(--text)}
+.display em{color:var(--accent);font-style:italic}
+.sub{font-size:17px;line-height:1.6;color:var(--muted);margin-bottom:26px}
+
+/* form elements */
+.stack{display:flex;flex-direction:column;gap:20px}
+.field{display:flex;flex-direction:column;gap:9px}
+.label{display:flex;justify-content:space-between;align-items:center;font-size:15.5px;font-weight:600;color:#d5d6dc}
+.label span{font-family:var(--mono);font-size:14px;font-weight:400;color:var(--faint)}
+.or-divider{display:flex;align-items:center;gap:12px;color:var(--accent);font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:1.5px;margin:-4px 0}
+.or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:var(--line2)}
+.wrap{position:relative}
+.prefix{position:absolute;left:18px;top:50%;transform:translateY(-50%);font-family:var(--serif);font-size:24px;color:var(--accent);pointer-events:none}
+.input{width:100%;min-height:60px;padding:15px 18px;font-size:18px;font-weight:500;color:var(--text);background:var(--s2);border:1.5px solid var(--line);border-radius:16px;outline:none;transition:border-color .25s,background .25s,box-shadow .25s,transform .25s var(--out)}
+.input:hover{border-color:var(--line2);background:var(--s3)}
+.input:focus{border-color:rgba(255,185,56,.75);background:#1f2244;box-shadow:0 0 0 4px rgba(255,185,56,.13);transform:translateY(-1px)}
+.input::placeholder{color:#5d6068}
+.input.mono{font-family:var(--mono);font-size:22px;letter-spacing:.18em;text-align:center}
+.input.mono::placeholder{letter-spacing:.1em}
+.input.ok{border-color:rgba(79,240,183,.8);box-shadow:0 0 0 4px rgba(79,240,183,.12)}
+.input.file{padding:10px;font-size:14px;color:var(--muted);cursor:pointer}
+.input.file::file-selector-button{margin-right:12px;padding:10px 16px;border:0;border-radius:11px;font:700 14px var(--sans);color:var(--ink);background:var(--accent);cursor:pointer}
+.input.shake{animation:shake .45s}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+
+/* buttons */
+.btn{position:relative;isolation:isolate;overflow:hidden;width:100%;min-height:62px;padding:16px 20px;border:0;border-radius:17px;font-size:18px;font-weight:650;cursor:pointer;display:block;text-align:center;text-decoration:none;transition:transform .3s var(--out),box-shadow .3s,background .3s,color .3s}
+.btn:active{transform:scale(.96)}
+.primary{color:var(--ink);background:var(--accent);box-shadow:0 18px 44px -14px rgba(255,185,56,.6),inset 0 1px 0 rgba(255,255,255,.7)}
+.primary::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.65) 50%,transparent 70%);transform:translateX(-130%) skewX(-18deg);transition:transform .8s var(--out)}
+.primary:hover{transform:translateY(-2px);background:var(--accent2)}
+.primary:hover::after{transform:translateX(130%) skewX(-18deg)}
+.primary:disabled{background:#25272c;color:#7b7e86;box-shadow:none;cursor:not-allowed;transform:none}
+.primary:disabled::after{display:none}
+.btn.light{background:var(--text);color:#0a0a0b;box-shadow:0 16px 40px -12px rgba(255,255,255,.35)}
+.ghost{color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:9px 15px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;transition:.25s}
+.ghost:hover{color:var(--text);border-color:var(--line2)}
+
+/* amount + QR */
+.amount{display:flex;flex-direction:column;align-items:center;padding:22px 18px;margin-bottom:22px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);position:relative;overflow:hidden}
+.amount small{font-size:15px;font-weight:600;color:var(--faint);margin-bottom:8px}
+.amount b{font-family:var(--serif);font-weight:400;font-size:72px;line-height:.9;letter-spacing:-.03em;display:flex;align-items:baseline;gap:8px}
+.amount b i{font-style:normal;font-size:30px;color:var(--accent)}
+.token-tag{margin-top:10px;padding:5px 13px;border-radius:99px;font-family:var(--mono);font-size:12px;color:var(--ok);background:rgba(79,240,183,.1);border:1px solid rgba(79,240,183,.3);cursor:pointer;transition:.2s}
+.token-tag:active{transform:scale(.94)}
+.qr-stage{margin:0 auto 20px;width:fit-content}
+.qr-ring{position:relative;overflow:hidden;padding:3px;border-radius:30px;box-shadow:0 12px 30px -14px rgba(255,185,56,.55)}
+.qr-ring::before{content:'';position:absolute;left:50%;top:50%;width:220%;height:220%;background:conic-gradient(#ffb938,#8f7bff,#fff,#ffb938);transform:translate(-50%,-50%);animation:rot 6s linear infinite;will-change:transform}
+@keyframes rot{to{transform:translate(-50%,-50%) rotate(360deg)}}
+.qr-card{position:relative;overflow:hidden;padding:16px;border-radius:27px;background:#fff}
+.qr-card img{display:block;width:min(228px,64vw);height:min(228px,64vw);object-fit:contain;border-radius:12px}
+.apps{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.apps span{padding:7px 13px;border-radius:999px;font-size:14.5px;font-weight:600;color:#c3c5cc;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.hint{display:flex;gap:10px;align-items:flex-start;padding:13px 15px;border-radius:15px;background:rgba(255,185,56,.07);border:1px solid rgba(255,185,56,.18);font-size:15.5px;color:#f0dfc0;line-height:1.5}
+
+/* download QR + Direct UPI App buttons */
+.btn.dl{min-height:56px;margin:-4px 0 12px;font-size:17px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--line2)}
+.btn.dl:hover{background:rgba(255,185,56,.12);border-color:rgba(255,185,56,.55);transform:translateY(-2px)}
+.dl.busy{pointer-events:none;border-color:rgba(255,185,56,.6)}
+.dl.busy .bi{animation:dlb .6s ease-in-out infinite}
+@keyframes dlb{50%{transform:translateY(5px)}}
+.dl.saved{color:#032a1d;background:var(--ok);border-color:transparent;animation:pop .45s var(--out)}
+
+.btn.upi-direct{min-height:58px;margin:0 0 22px;font-size:17px;font-weight:700;color:#032a1d;background:linear-gradient(135deg,#4ff0b7,#1fd69a);border:0;box-shadow:0 14px 34px -12px rgba(79,240,183,.55)}
+.btn.upi-direct:hover{transform:translateY(-2px);filter:brightness(1.06)}
+
+/* loading */
+.load{display:flex;flex-direction:column;align-items:center;padding:30px 0 14px}
+.loader{width:88px;height:88px;position:relative;margin-bottom:24px}
+.loader::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid rgba(255,255,255,.07);border-top-color:var(--accent);border-right-color:var(--violet);animation:spin 1s linear infinite}
+.loader::after{content:'';position:absolute;inset:24px;border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(255,185,56,.4),rgba(255,185,56,.05));animation:pulse 1.8s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(.88)}}
+@keyframes pop{50%{transform:scale(1.3)}}
+.shimmer{font-family:var(--mono);font-size:14px;color:var(--muted);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{50%{opacity:.45}}
+.lite .qr-ring::before,.lite .kicker i{animation:none}
+
+/* admin list */
+.preview{display:none;padding:14px;border-radius:20px;background:rgba(255,255,255,.03);border:1px solid var(--line);text-align:center}
+.preview img{width:150px;height:150px;object-fit:contain;padding:10px;background:#fff;border-radius:16px}
+.preview small{display:block;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--ok)}
+.link-mono{padding:14px;margin-bottom:12px;border-radius:13px;background:rgba(0,0,0,.45);border:1px solid var(--line);color:#ffe2a8;font:500 13.5px/1.5 var(--mono);word-break:break-all}
+.prev-head{display:flex;justify-content:space-between;align-items:center;margin-top:30px;padding-top:22px;border-top:1px solid var(--line)}
+.prev-head h3{font-family:var(--serif);font-weight:400;font-size:24px}
+.links{margin-top:14px;display:flex;flex-direction:column;gap:10px;max-height:340px;overflow:auto;scrollbar-width:thin}
+.row{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line);animation:rowIn .5s var(--out) both;transition:.3s var(--out)}
+.row:hover{border-color:rgba(255,185,56,.3);background:rgba(255,185,56,.05)}
+@keyframes rowIn{from{opacity:0;transform:translateY(12px)}}
+.row img{width:50px;height:50px;padding:4px;background:#fff;border-radius:12px;object-fit:contain;flex:none}
+.meta2{flex:1;min-width:0}
+.meta2 .amt{font-family:var(--serif);font-size:22px}
+.meta2 .url{font:13px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini{padding:10px 14px;border:0;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;transition:.2s}
+.mc{color:var(--accent);background:rgba(255,185,56,.12)}.mc:hover{background:var(--accent);color:#000}
+.md{color:#ff9aa8;background:rgba(255,125,140,.12)}.md:hover{background:var(--bad);color:#fff}
+.foot{margin-top:20px;font-size:14px;color:var(--faint);line-height:1.6;text-align:center}
+.empty{padding:14px;font:14px var(--mono);color:var(--faint)}
+
+/* toast & motion */
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:99;max-width:min(92vw,420px);padding:13px 20px;border-radius:16px;font-size:15px;font-weight:600;box-shadow:0 18px 40px -10px rgba(0,0,0,.6);display:flex;gap:10px;align-items:center}
+.toast.good2{background:var(--text);color:#0a0a0b}
+.toast.err{background:#2a1218;color:#ffc2ca;border:1px solid rgba(255,125,140,.45)}
+.streak{position:absolute;top:0;bottom:0;width:40%;left:0;z-index:6;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,185,56,.16),rgba(255,255,255,.2),transparent);transform:translateX(-120%) skewX(-18deg);animation:streak .8s var(--out) forwards}
+@keyframes streak{to{transform:translateX(330%) skewX(-18deg)}}
+.rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.5);transform:scale(0);animation:rip .7s var(--out) forwards;pointer-events:none;z-index:0}
+@keyframes rip{to{transform:scale(1);opacity:0}}
+.btn .bl{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.bi{width:24px;height:24px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.paynote{min-height:22px;margin-top:-8px;text-align:center;font-size:14.5px;color:var(--muted)}
+
+/* pay button states */
+#userSubmitBtn .fill{position:absolute;inset:0;width:auto;transform:scaleX(0);transform-origin:0 50%;z-index:0}
+#userSubmitBtn[data-state=proc],#userSubmitBtn[data-state=verify],#userSubmitBtn[data-state=done]{pointer-events:none}
+#userSubmitBtn[data-state=proc]::after,#userSubmitBtn[data-state=verify]::after{display:none}
+#userSubmitBtn[data-state=proc]{background:#2a2012;color:var(--accent);box-shadow:inset 0 0 0 1.5px rgba(255,185,56,.55)}
+#userSubmitBtn[data-state=proc] .fill{background:linear-gradient(90deg,rgba(255,185,56,.12),rgba(255,185,56,.45) 90%,rgba(255,225,150,.9));animation:fillbar 5s linear forwards}
+@keyframes fillbar{to{transform:scaleX(1)}}
+.spin{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,185,56,.25);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.cd{font-family:var(--mono);font-size:15px;font-weight:500;opacity:.85}
+#userSubmitBtn[data-state=ready]{background:linear-gradient(100deg,#ffb938,#4ff0b7);box-shadow:0 14px 34px -12px rgba(79,240,183,.65)}
+#userSubmitBtn[data-state=ready]::after{animation:shine 1.8s ease-in-out infinite}
+@keyframes shine{0%{transform:translateX(-130%) skewX(-18deg)}60%,100%{transform:translateX(130%) skewX(-18deg)}}
+#userSubmitBtn[data-state=verify]{background:#17183a;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(143,123,255,.7)}
+.orbit{position:relative;width:26px;height:26px;animation:spin .9s linear infinite}
+.orbit i{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.orbit i:nth-child(1){top:0;left:9px}.orbit i:nth-child(2){bottom:1px;left:1px;background:var(--violet)}.orbit i:nth-child(3){bottom:1px;right:1px;background:#fff;opacity:.6}
+
+/* verification screen (Google Pay / PhonePe style) */
+.vx{position:fixed;inset:0;z-index:80;display:none;overflow:hidden;color:#fff;opacity:0;transform:scale(1.03);transition:opacity .3s,transform .45s var(--out);background:radial-gradient(120% 80% at 50% 0%,#2a1f68,#12103a 55%,#0a0b1e)}
+.vx.on{display:block}.vx.show{opacity:1;transform:none}
+.vx-ok,.vx-bd{position:absolute;inset:0;opacity:0;transition:opacity .8s;pointer-events:none}
+.vx-ok{background:radial-gradient(90% 55% at 50% 28%,rgba(31,214,154,.5),transparent 70%),linear-gradient(#0b2d2b,#06141b)}
+.vx-bd{background:radial-gradient(90% 55% at 50% 28%,rgba(255,93,115,.4),transparent 70%),linear-gradient(#2b1120,#12080f)}
+.vx[data-s=ok] .vx-ok,.vx[data-s=bad] .vx-bd{opacity:1}
+.vx-top{position:absolute;top:calc(18px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;font-size:13.5px;font-weight:600;color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);white-space:nowrap}
+.vx-top i{width:7px;height:7px;border-radius:50%;background:#1fd69a}
+.vx-body{position:relative;height:100%;max-width:460px;margin:0 auto;padding:calc(66px + env(safe-area-inset-top)) 24px calc(26px + env(safe-area-inset-bottom));overflow-y:auto;display:flex;flex-direction:column;align-items:center;text-align:center}
+.vx-col{margin:auto 0;width:100%;display:flex;flex-direction:column;align-items:center}
+.vx-stage{position:relative;width:150px;height:150px;margin-bottom:22px}
+.vx-spin,.vx-svg{position:absolute;inset:15px;width:120px;height:120px}
+.vx-spin{animation:spin 1s linear infinite;will-change:transform}
+.vx-arc,.vx-track,.vx-fill{fill:none;stroke-width:5;stroke-linecap:round}
+.vx-arc{stroke:var(--accent);stroke-dasharray:80 260}
+.vx-track{stroke:rgba(255,255,255,.14)}
+.vx-fill{stroke:none;fill:#1fd69a;opacity:0}
+.vx-tick,.vx-x{fill:none;stroke:#fff;stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:70;stroke-dashoffset:70}
+.vx-sh{fill:none;stroke:rgba(255,255,255,.8);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;animation:blink 1.6s ease-in-out infinite}
+.vx:not([data-s=load]) .vx-sh,.vx:not([data-s=load]) .vx-spin{display:none}
+.vx:not([data-s=load]) .vx-svg{animation:pop3 .6s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop3{from{transform:scale(.5)}}
+.vx:not([data-s=load]) .vx-fill{opacity:1}
+.vx[data-s=bad] .vx-fill{fill:#ff5d73}
+.vx[data-s=ok] .vx-tick{animation:draw .45s .3s cubic-bezier(.65,0,.45,1) forwards}
+.vx[data-s=bad] .vx-x{stroke-dasharray:50;stroke-dashoffset:50;animation:draw .4s .25s cubic-bezier(.65,0,.45,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.vx-r{position:absolute;inset:15px;border-radius:50%;border:2px solid rgba(255,255,255,.4);opacity:0}
+.vx[data-s=load] .vx-r{animation:ringp 2.4s ease-out infinite}
+.vx[data-s=load] .r2{animation-delay:.8s}.vx[data-s=load] .r3{animation-delay:1.6s}
+@keyframes ringp{from{transform:scale(.9);opacity:.55}to{transform:scale(var(--sc,1.6));opacity:0}}
+.vx[data-s=ok] .vx-r{--sc:2.6;border:3px solid #4ff0b7;animation:ringp .95s ease-out forwards}
+.vx[data-s=ok] .r2{animation-delay:.14s}.vx[data-s=ok] .r3{animation-delay:.28s}
+.vx[data-s=bad] .vx-r{--sc:1.9;border-color:#ff7d8c;animation:ringp .8s ease-out forwards}
+.vx-parts{position:absolute;left:50%;top:50%;pointer-events:none}
+.vx-parts i{position:absolute;margin:-4px 0 0 -4px;border-radius:50%;animation:spark .95s cubic-bezier(.2,.8,.2,1) both}
+@keyframes spark{0%{transform:translate(0,0) scale(.3);opacity:1}70%{opacity:1}100%{transform:translate(var(--x),var(--y)) scale(1);opacity:0}}
+.vx-amt{display:flex;align-items:baseline;gap:6px;font-family:var(--serif);font-size:64px;line-height:1;letter-spacing:-.03em}
+.vx-amt i{font-style:normal;font-size:32px;color:var(--accent)}
+.vx[data-s=ok] .vx-amt i{color:#7dffd4}
+.vx-title{font-family:var(--serif);font-weight:400;font-size:38px;line-height:1.05;margin:14px 0 8px}
+.vx-sub{font-size:17px;color:rgba(255,255,255,.75);min-height:26px}
+.vx-steps{list-style:none;margin:22px 0 0;width:100%;max-width:300px;text-align:left}
+.vx-steps li{display:flex;align-items:center;gap:12px;padding:9px 0;font-size:16px;font-weight:500;opacity:.4;transition:opacity .3s}
+.vx-steps li::before{content:'';flex:none;width:22px;height:22px;box-sizing:border-box;border-radius:50%;border:2px solid rgba(255,255,255,.35);display:grid;place-items:center;font-size:12px;font-weight:800;color:#04251a}
+.vx-steps li.act{opacity:1}
+.vx-steps li.act::before{border-color:rgba(255,185,56,.3);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.vx-steps li.done{opacity:1}
+.vx-steps li.done::before{content:'✓';background:#1fd69a;border-color:#1fd69a;animation:pop .4s var(--out)}
+.vx-card{width:100%;max-width:420px;margin:22px 0 18px;padding:4px 18px;border-radius:20px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);text-align:left}
+.vx-card p{display:flex;justify-content:space-between;gap:16px;padding:13px 0;font-size:15.5px}
+.vx-card p+p{border-top:1px dashed rgba(255,255,255,.16)}
+.vx-card b{color:rgba(255,255,255,.65);font-weight:600}
+.vx-card span{font-family:var(--mono);font-size:14.5px;text-align:right;word-break:break-all}
+.vx-btn{width:100%;max-width:420px}
+#targetLinkBtn{background:#fff;color:#06231b}
+.vx-retry{margin-top:22px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.vx[data-s=load] .vx-card,.vx[data-s=load] .vx-btn,.vx[data-s=ok] .vx-steps,.vx[data-s=ok] .vx-retry,.vx[data-s=bad] .vx-steps,.vx[data-s=bad] .vx-card,.vx[data-s=bad] #targetLinkBtn{display:none}
+.vx:not([data-s=load]) .vx-in{animation:up .6s var(--out) both;animation-delay:var(--d,0s)}
+@keyframes up{from{opacity:0;transform:translateY(16px)}}
+@media(max-width:420px){.inner{padding:30px 20px 22px}.amount b{font-size:56px}}
+@media(max-height:700px){.vx-amt{font-size:50px}.vx-title{font-size:31px}.vx-card p{padding:10px 0}.vx-stage{margin-bottom:8px}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="shell" id="mainContainer">
+  <button class="mute" id="muteBtn" aria-label="Toggle sound" title="Sound on/off">🔊</button>
+  <div class="inner">
+
+    <!-- ADMIN PANEL -->
+    <div id="adminView" class="hidden">
+      <div class="kicker"><i></i> Admin panel</div>
+      <h1 class="display">Create a <em>payment link</em></h1>
+      <p class="sub">Enter the amount, destination link, and choose a QR image OR paste an Auto-Refreshing QR link.</p>
+      <div class="stack">
+        <div class="field">
+          <div class="label">Amount <span>INR</span></div>
+          <div class="wrap"><span class="prefix">₹</span><input type="number" inputmode="decimal" id="adminAmount" class="input" style="padding-left:42px" placeholder="499"></div>
+        </div>
+        <div class="field">
+          <div class="label">Destination URL <span>opens after payment</span></div>
+          <input type="url" id="adminTargetUrl" class="input" placeholder="https://t.me/yourchannel">
+        </div>
+
+        <!-- Option 1: Upload Static QR Image -->
+        <div class="field">
+          <div class="label">Choose Payment QR Image <span>max 800 KB</span></div>
+          <input type="file" id="adminQrFile" class="input file" accept="image/*">
+        </div>
+
+        <div class="or-divider">OR AUTO-REFRESH QR LINK</div>
+
+        <!-- Option 2: Paste Auto-Refreshing QR Link -->
+        <div class="field">
+          <div class="label">Add Payment / QR Link <span>Auto-Refreshes per user</span></div>
+          <input type="text" id="adminQrLink" class="input" placeholder="Paste Auto-Refresh QR Link (upi://pay?...)">
+        </div>
+
+        <div class="preview" id="adminPreviewBox">
+          <img id="adminQrPreview" src="" alt="QR preview">
+          <small id="adminPreviewMode">✓ Preview Ready</small>
+        </div>
+
+        <button id="genBtn" class="btn primary" onclick="handleClick(); generatePaymentLink()">Generate payment link</button>
+        <div id="adminResultBox" class="hidden">
+          <div class="label" style="margin-bottom:10px">Your payment link</div>
+          <div class="link-mono" id="finalGeneratedLink"></div>
+          <button class="btn light" onclick="handleClick(); copyPaymentLink()">Copy link</button>
+        </div>
+      </div>
+      <div class="prev-head"><h3>Active links</h3><button class="ghost" onclick="handleClick(); loadPreviousLinks()">↻ Refresh</button></div>
+      <div class="links" id="previousLinksList"></div>
+      <p class="foot">Links are stored in Firebase Realtime Database</p>
+    </div>
+
+    <!-- USER CHECKOUT VIEW -->
+    <div id="userView" class="hidden">
+      <div id="loadingScreen" class="load">
+        <div class="loader"></div>
+        <p class="shimmer">Loading your payment…</p>
+      </div>
+
+      <div id="userPaymentFormSection" class="hidden">
+        <div class="kicker"><i></i> Secure checkout</div>
+        <h2 class="display">Scan the QR, then <em>verify</em></h2>
+        <p class="sub">Pay with any UPI app, then enter your 12-digit UTR below.</p>
+
+        <div class="amount">
+          <small>Amount to pay</small>
+          <b><i>₹</i><span id="userDisplayAmount">0</span></b>
+          <div id="userTokenBadge" class="token-tag hidden" onclick="refreshUserDynamicQR(true)" title="Tap to generate a fresh QR token">🛡️ Unique Session QR • Tap to Refresh</div>
+        </div>
+
+        <div class="qr-stage"><div class="qr-ring"><div class="qr-card">
+          <img id="userDisplayQR" src="" alt="Payment QR">
+        </div></div></div>
+
+        <!-- Download QR Button -->
+        <button type="button" id="dlQrBtn" class="btn dl"><span class="bl"><svg class="bi" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 11l4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/></svg><span id="dlTxt">Download QR</span></span></button>
+
+        <!-- Direct Open in UPI App Button -->
+        <button type="button" id="openUpiAppBtn" class="btn upi-direct"><span class="bl"><svg class="bi" viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg><span>Direct Open in UPI App</span></span></button>
+
+        <div class="apps"><span>GPay</span><span>PhonePe</span><span>Paytm</span><span>BHIM</span></div>
+
+        <form id="userPaymentForm" class="stack" novalidate>
+          <div class="field">
+            <div class="label">Email address</div>
+            <input type="email" id="userEmail" class="input" placeholder="you@gmail.com" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <div class="label">UTR / UPI reference <span id="utrCount">0/12</span></div>
+            <input type="text" id="userUTR" class="input mono" placeholder="12-digit UTR" maxlength="12" inputmode="numeric" autocomplete="off" required>
+          </div>
+          <div class="hint"><span>💡</span><span>Find the UTR in your payment app under transaction details, after the payment succeeds.</span></div>
+          <button type="submit" id="userSubmitBtn" class="btn primary" data-state="idle"></button>
+          <p class="paynote" id="payNote" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Hidden container for dynamic QR rendering -->
+<div id="hiddenQrGenerator" style="display:none;"></div>
+
+<div id="vx" class="vx" data-s="load" aria-hidden="true" role="dialog" aria-label="Payment verification">
+  <i class="vx-ok"></i><i class="vx-bd"></i>
+  <div class="vx-top"><i></i> Secure verification</div>
+  <div class="vx-body"><div class="vx-col">
+    <div class="vx-stage">
+      <i class="vx-r r1"></i><i class="vx-r r2"></i><i class="vx-r r3"></i>
+      <svg class="vx-spin" viewBox="0 0 120 120"><circle class="vx-arc" cx="60" cy="60" r="52"/></svg>
+      <svg class="vx-svg" viewBox="0 0 120 120"><circle class="vx-track" cx="60" cy="60" r="52"/><circle class="vx-fill" cx="60" cy="60" r="52"/><g class="vx-sh" transform="translate(36 36) scale(2)"><path d="M12 3l7 3v5c0 4.2-2.8 7.8-7 10-4.2-2.2-7-5.8-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></g><path class="vx-tick" d="M38 62l15 15 30-32"/><path class="vx-x" d="M44 44l32 32M76 44L44 76"/></svg>
+      <div class="vx-parts" id="vxParts"></div>
+    </div>
+    <div class="vx-amt vx-in" style="--d:.45s"><i>₹</i><span id="vxAmt">0</span></div>
+    <h2 class="vx-title vx-in" id="vxTitle" style="--d:.55s">Verifying payment</h2>
+    <p class="vx-sub vx-in" id="vxSub" style="--d:.62s">Starting…</p>
+    <ul class="vx-steps" id="vxSteps"><li>Saving your email</li><li>Matching your UTR</li><li>Confirming the amount</li></ul>
+    <div class="vx-card vx-in" style="--d:.72s"><p><b>Email</b><span id="rEmail"></span></p><p><b>UTR</b><span id="rUtr"></span></p><p><b>Time</b><span id="rTime"></span></p></div>
+    <a id="targetLinkBtn" href="#" target="_blank" rel="noopener" class="btn vx-btn vx-in" style="--d:.85s" onclick="handleClick()">Open your content</a>
+    <button type="button" id="vxRetry" class="btn vx-btn vx-retry vx-in" style="--d:.8s">Try again</button>
+  </div></div>
+</div>
+
+<script>
+/* ======= CONFIGURATION VARIABLES ======= */
+const FIREBASE_BASE_URL = "https://pementveryfy-default-rtdb.firebaseio.com";
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwlN_54aywAvJ0pi76utQFzztWdPoPmBXDp9iyJnPqWw6lh_cQ93Vdb_5lDW2Aq0hdloA/exec";
+
+const $ = id => document.getElementById(id);
+
+/* ==================== AUDIO + HAPTICS ==================== */
+const LITE = (navigator.deviceMemory && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+if (LITE) document.documentElement.classList.add('lite');
+let audioCtx = null, master = null, verbBus = null, noiseBuf = null, muted = false;
+try{ muted = localStorage.getItem('pq_muted') === '1'; }catch(e){}
+function getCtx(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = audioCtx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
+    master = audioCtx.createGain(); master.gain.value = .95; master.connect(comp); comp.connect(audioCtx.destination);
+    const sr = audioCtx.sampleRate; noiseBuf = audioCtx.createBuffer(1, sr, sr);
+    const nd = noiseBuf.getChannelData(0); for(let i = 0; i < sr; i++) nd[i] = Math.random() * 2 - 1;
+    if(!LITE){
+      const len = Math.floor(sr * .9), ir = audioCtx.createBuffer(2, len, sr);
+      for(let c = 0; c < 2; c++){ const d = ir.getChannelData(c); for(let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8); }
+      const cv = audioCtx.createConvolver(); cv.buffer = ir;
+      verbBus = audioCtx.createGain(); verbBus.gain.value = .55; verbBus.connect(cv);
+      const wet = audioCtx.createGain(); wet.gain.value = .5; cv.connect(wet); wet.connect(master);
+    }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+document.addEventListener('pointerdown', () => { if(!muted) try{ getCtx(); }catch(e){} }, {once:true, passive:true});
+function vib(p){ if(!muted && navigator.vibrate) navigator.vibrate(p); }
+const hapticLight = () => vib(12);
+const hapticMed = () => vib(22);
+const hapticSuccess = () => vib([30,50,30,80,120]);
+const hapticError = () => vib([40,30,60]);
+
+function tone(f, t, d, type='sine', v=.2, f2, wet=0){
+  const c = getCtx(), n = c.currentTime + t, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, n);
+  if(f2) o.frequency.exponentialRampToValueAtTime(f2, n + d);
+  g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(v, n + .008); g.gain.exponentialRampToValueAtTime(.0001, n + d);
+  o.connect(g); g.connect(master); if(wet && verbBus) g.connect(verbBus);
+  o.start(n); o.stop(n + d + .03);
+}
+const PART = [[1,1],[2.76,.28],[5.4,.1]];
+function bell(f, t=0, d=1, v=.18, wet=1, n=3){ for(let i = 0; i < n; i++) tone(f * PART[i][0], t, d / (1 + i * .7), 'sine', v * PART[i][1], 0, wet); }
+function noise(t, d, f1, f2, v=.08, q=1){
+  const c = getCtx(), n = c.currentTime + t, s = c.createBufferSource(), b = c.createBiquadFilter(), g = c.createGain();
+  s.buffer = noiseBuf; b.type = 'bandpass'; b.Q.value = q;
+  b.frequency.setValueAtTime(f1, n); b.frequency.exponentialRampToValueAtTime(f2, n + d);
+  g.gain.setValueAtTime(.0001, n); g.gain.exponentialRampToValueAtTime(v, n + d * .35); g.gain.exponentialRampToValueAtTime(.0001, n + d);
+  s.connect(b); b.connect(g); g.connect(master); s.start(n); s.stop(n + d + .05);
+}
+function play(fn){ if(muted) return; try{ fn(); }catch(e){} }
+
+function handleClick(){ hapticLight(); play(()=>{ tone(540,0,.07,'sine',.16,300); noise(0,.04,3500,1800,.03); }); }
+function soundTick(i=0){ play(()=> tone(1200 + (i % 6) * 30, 0, .03, 'sine', .04, 800)); }
+function soundStep(){ play(()=>{ bell(880,0,.5,.13,1,2); bell(1318.5,.08,.6,.11,1,2); }); }
+function soundWhoosh(){ play(()=>{ noise(0,.4,300,2600,.07,.8); tone(160,0,.32,'sine',.06,520); }); }
+function soundReady(){ play(()=>{ bell(988,0,.4,.1,1,2); bell(1318.5,.07,.55,.1,1,2); }); }
+function soundWork(i=0){ play(()=> bell([523.25,587.33,659.25,783.99,880][i % 5], 0, .55, .13, 1, 2)); }
+function soundPing(i=0){ play(()=> tone(1568 + i * 110, 0, .26, 'sine', .08, 1100 + i * 80, 1)); }
+function soundArm(){ play(()=>{ bell(1318.5,0,.9,.16); bell(1760,.11,1.2,.16); noise(0,.3,2500,7000,.02,1.4); }); }
+function soundOpen(){ play(()=>{ tone(110,0,.35,'sine',.28,48); noise(0,.45,250,3000,.07,.8); bell(659.25,.06,.7,.1,1,2); }); }
+function soundSave(){ play(()=>{ tone(620,0,.12,'triangle',.14,300); bell(1046.5,.1,.8,.13,1,2); bell(1568,.2,.9,.11,1,2); }); }
+function handleSuccessSound(){
+  hapticSuccess();
+  play(()=>{
+    tone(150,0,.32,'sine',.3,52); noise(0,.55,400,5200,.06,.7);
+    bell(784,.02,1,.2); bell(1046.5,.1,1.1,.2); bell(1318.5,.19,1.2,.2); bell(1568,.29,1.7,.22);
+    [2093,2637,3136,3951].forEach((f,i)=> bell(f,.5 + i * .07,.5,.05,1,1));
+    [523.25,659.25,783.99].forEach(f=> tone(f,.3,1.4,'triangle',.05,0,1));
+  });
+}
+function handleErrorSound(){
+  hapticError();
+  play(()=>{ tone(98,0,.3,'sine',.14,64); tone(392,0,.2,'triangle',.13,330); tone(311,.17,.34,'triangle',.13,247); });
+}
+$('muteBtn').textContent = muted ? '🔇' : '🔊';
+$('muteBtn').addEventListener('click', () => {
+  muted = !muted;
+  try{ localStorage.setItem('pq_muted', muted ? '1' : '0'); }catch(e){}
+  $('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if(!muted) handleClick();
+});
+
+// Typing haptics & sound on all text/number inputs
+document.querySelectorAll('input').forEach(inp => {
+  inp.addEventListener('input', () => { hapticLight(); soundTick(); });
+});
+
+/* ==================== TOAST & TRANSITIONS ==================== */
+function toast(msg, type='good2'){
+  document.querySelectorAll('.toast').forEach(x => x.remove());
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.setAttribute('role','status');
+  t.textContent = (type === 'err' ? '⚠ ' : '✓ ') + msg;
+  document.body.appendChild(t);
+  t.animate([{opacity:0,transform:'translate(-50%,16px) scale(.96)'},{opacity:1,transform:'translate(-50%,0) scale(1)'}],{duration:380,easing:'cubic-bezier(.22,1,.36,1)'});
+  setTimeout(()=> t.animate([{opacity:1},{opacity:0}],{duration:260}).onfinish = () => t.remove(), type === 'err' ? 3600 : 1800);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function animateEnter(el){
+  if(!el) return;
+  el.classList.remove('hidden');
+  el.animate([{opacity:0,transform:'translateX(26px) scale(.98)'},{opacity:1,transform:'none'}],{duration:600,easing:'cubic-bezier(.22,1,.36,1)',fill:'both'});
+}
+function streak(){ const x=document.createElement('i'); x.className='streak'; $('mainContainer').appendChild(x); setTimeout(()=>x.remove(),900); }
+function animateSwap(fromEl, toEl){
+  soundWhoosh(); streak();
+  if(fromEl && !fromEl.classList.contains('hidden')){
+    fromEl.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateX(-26px) scale(.98)'}],{duration:300,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'}).onfinish = () => {
+      fromEl.classList.add('hidden');
+      if(toEl) animateEnter(toEl);
+    };
+  } else if(toEl){ animateEnter(toEl); }
+}
+
+/* ==================== SMART QR ENGINE (IMAGE + AUTO-REFRESH LINK) ==================== */
+function makeQrDataUrlFromText(text) {
+  return new Promise(resolve => {
+    const box = $('hiddenQrGenerator');
+    box.innerHTML = '';
+    new QRCode(box, { text, width: 320, height: 320, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+    setTimeout(() => {
+      const canvas = box.querySelector('canvas');
+      const img = box.querySelector('img');
+      resolve(canvas ? canvas.toDataURL('image/png') : (img ? img.src : ''));
+    }, 60);
+  });
+}
+
+function buildFreshUpiUri(rawInput, amountVal) {
+  const token = Math.floor(1000 + Math.random() * 9000);
+  let pa = "", pn = "Merchant", tnBase = "Pay", isMerchant = false;
+  const str = (rawInput || "").trim();
+
+  if (str.startsWith("upi://") || str.includes("pa=")) {
+    const qIndex = str.indexOf("?");
+    const params = new URLSearchParams(qIndex >= 0 ? str.slice(qIndex + 1) : str);
+    pa = params.get("pa") || "";
+    pn = params.get("pn") || "Merchant";
+    tnBase = (params.get("tn") || "Pay").split("#")[0].trim();
+    isMerchant = params.get("type") === "merchant";
+  } else if (str.includes("@")) {
+    pa = str;
+  }
+
+  const amtFixed = parseFloat(amountVal || 0).toFixed(2);
+  const noteEncoded = encodeURIComponent(`${tnBase} #${token}`);
+  let uri = `upi://pay?pa=${encodeURIComponent(pa)}&pn=${encodeURIComponent(pn)}&am=${amtFixed}&cu=INR&tn=${noteEncoded}`;
+  if (isMerchant) uri += `&tr=ORD${Date.now()}${token}&mc=0000&mode=02`;
+  return { uri, token, pa };
+}
+
+function decodeUpiFromImageBase64(src) {
+  return new Promise(resolve => {
+    if (!window.jsQR) return resolve("");
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = im.width; c.height = im.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(im, 0, 0);
+      const imgData = ctx.getImageData(0, 0, c.width, c.height);
+      const code = jsQR(imgData.data, imgData.width, imgData.height);
+      resolve(code && code.data ? code.data : "");
+    };
+    im.onerror = () => resolve("");
+    im.src = src;
+  });
+}
+
+/* ==================== ROUTING ==================== */
+const linkId = new URLSearchParams(window.location.search).get('id');
+if (linkId) { $('userView').classList.remove('hidden'); loadPaymentDetails(linkId); }
+else { animateEnter($('adminView')); loadPreviousLinks(); }
+
+/* ==================== ADMIN LOGIC ==================== */
+let uploadedQrBase64 = "";
+let decodedImageUpi = "";
+
+$('adminQrFile').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 800 * 1024) { toast("Image is over 800 KB. Choose a smaller QR image.", 'err'); this.value = ""; handleErrorSound(); return; }
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    uploadedQrBase64 = await shrinkQR(ev.target.result);
+    decodedImageUpi = await decodeUpiFromImageBase64(uploadedQrBase64);
+    $('adminQrLink').value = "";
+    $('adminQrPreview').src = uploadedQrBase64;
+    $('adminPreviewMode').textContent = "📷 Static QR Image Mode";
+    const box = $('adminPreviewBox'); box.style.display = 'block';
+    soundReady();
+  };
+  reader.readAsDataURL(file);
+});
+
+$('adminQrLink').addEventListener('input', async function () {
+  const val = this.value.trim();
+  if (!val) return;
+  uploadedQrBase64 = "";
+  $('adminQrFile').value = "";
+  const amt = $('adminAmount').value.trim() || "100";
+  const { uri, pa } = buildFreshUpiUri(val, amt);
+  if (pa) {
+    const previewDataUrl = await makeQrDataUrlFromText(uri);
+    $('adminQrPreview').src = previewDataUrl;
+    $('adminPreviewMode').textContent = `🔄 Auto-Refreshing QR Mode (${pa})`;
+    $('adminPreviewBox').style.display = 'block';
+  }
+});
+
+function shrinkQR(src){ return new Promise(res => { const im = new Image(); im.onload = () => { try {
+  const k = Math.min(1, 640 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+  c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, c.width, c.height);
+  const o = c.toDataURL('image/png'); res(o.length < src.length ? o : src);
+} catch (e) { res(src); } }; im.onerror = () => res(src); im.src = src; }); }
+
+async function generatePaymentLink() {
+  const amount = $('adminAmount').value.trim();
+  const targetUrl = $('adminTargetUrl').value.trim();
+  const qrLinkInput = $('adminQrLink').value.trim();
+  const genBtn = $('genBtn');
+
+  if (!amount || amount <= 0) { toast("Enter a valid amount.", 'err'); shake($('adminAmount')); handleErrorSound(); return; }
+  if (!targetUrl) { toast("Enter the destination URL.", 'err'); shake($('adminTargetUrl')); handleErrorSound(); return; }
+  if (!uploadedQrBase64 && !qrLinkInput) {
+    toast("Choose a QR image OR paste an Auto-Refreshing QR Link!", 'err');
+    shake($('adminQrLink')); handleErrorSound(); return;
+  }
+
+  genBtn.disabled = true; genBtn.innerText = "Generating…";
+  let finalPreviewImg = uploadedQrBase64;
+  if (qrLinkInput) {
+    const { uri } = buildFreshUpiUri(qrLinkInput, amount);
+    finalPreviewImg = await makeQrDataUrlFromText(uri);
+  }
+
+  const newLinkId = "pay_" + Math.random().toString(36).substr(2, 9);
+  try {
+    const res = await fetch(`${FIREBASE_BASE_URL}/active_qr_links/${newLinkId}.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        targetUrl,
+        qrImage: finalPreviewImg,
+        qrLink: qrLinkInput || "",
+        decodedUpi: decodedImageUpi || "",
+        createdAt: Date.now()
+      })
+    });
+    if (res.ok) {
+      $('finalGeneratedLink').innerText = `${window.location.origin}${window.location.pathname}?id=${newLinkId}`;
+      animateEnter($('adminResultBox'));
+      handleSuccessSound(); toast("Payment link created");
+      loadPreviousLinks();
+    } else { toast("Could not save the link. Try again.", 'err'); handleErrorSound(); }
+  } catch (err) {
+    toast("Network error. Check your connection.", 'err'); handleErrorSound();
+  } finally {
+    genBtn.disabled = false; genBtn.innerText = "Generate payment link";
+  }
+}
+
+function copyPaymentLink() {
+  navigator.clipboard.writeText($('finalGeneratedLink').innerText);
+  hapticMed(); soundStep(); toast("Link copied");
+}
+
+async function loadPreviousLinks() {
+  const box = $('previousLinksList');
+  box.innerHTML = "<p class='empty'>Loading links…</p>";
+  try {
+    const res = await fetch(`${FIREBASE_BASE_URL}/active_qr_links.json`);
+    const data = await res.json();
+    if (!data || Object.keys(data).length === 0) { box.innerHTML = "<p class='empty'>No active links yet. Create your first one above.</p>"; return; }
+    box.innerHTML = "";
+    Object.keys(data).reverse().forEach((k, n) => {
+      const item = data[k];
+      const fullLink = `${window.location.origin}${window.location.pathname}?id=${k}`;
+      const modeTag = item.qrLink ? "🔄 Auto-QR" : "📷 Image QR";
+      const el = document.createElement('div');
+      el.className = 'row'; el.style.animationDelay = (n * 45) + 'ms';
+      el.innerHTML = `<img src="${esc(item.qrImage)}" alt="QR">
+        <div class="meta2"><div class="amt">₹${esc(item.amount)} <span style="font-size:12px;color:var(--ok)">${modeTag}</span></div><div class="url">${esc(item.targetUrl || 'No target')}</div></div>
+        <button class="mini mc">Copy</button><button class="mini md">Delete</button>`;
+      el.querySelector('.mc').onclick = () => { handleClick(); navigator.clipboard.writeText(fullLink); toast("Link copied"); };
+      el.querySelector('.md').onclick = () => deleteLink(k);
+      box.appendChild(el);
+    });
+  } catch (e) { box.innerHTML = "<p class='empty' style='color:var(--bad)'>Could not load links. Tap Refresh.</p>"; }
+}
+
+async function deleteLink(id) {
+  if (!confirm("Delete this link permanently?")) return;
+  handleClick();
+  await fetch(`${FIREBASE_BASE_URL}/active_qr_links/${id}.json`, { method: "DELETE" });
+  toast("Link deleted"); loadPreviousLinks();
+}
+
+/* ==================== CUSTOMER CHECKOUT & AUTO-REFRESH QR ==================== */
+let currentAmount = "0", targetLinkUrl = "", activeQrLinkTemplate = "", currentLiveUpiUri = "";
+
+async function refreshUserDynamicQR(showNotification = false) {
+  if (!activeQrLinkTemplate) return;
+  const { uri, token } = buildFreshUpiUri(activeQrLinkTemplate, currentAmount);
+  currentLiveUpiUri = uri;
+  const freshDataUrl = await makeQrDataUrlFromText(uri);
+  $('userDisplayQR').src = freshDataUrl;
+  const badge = $('userTokenBadge');
+  badge.classList.remove('hidden');
+  badge.textContent = `🛡️ Safe Dynamic QR #${token} • Tap to Refresh`;
+  if (showNotification) { handleClick(); toast(`New QR Token #${token} Generated`); }
+}
+
+async function loadPaymentDetails(id) {
+  try {
+    const res = await fetch(`${FIREBASE_BASE_URL}/active_qr_links/${id}.json`);
+    const data = await res.json();
+    if (data && (data.qrImage || data.qrLink)) {
+      currentAmount = data.amount;
+      targetLinkUrl = data.targetUrl || "#";
+      $('userDisplayAmount').innerText = currentAmount;
+      $('targetLinkBtn').href = targetLinkUrl;
+
+      if (data.qrLink && data.qrLink.trim() !== "") {
+        // Dynamic Auto-Refreshing QR Mode per user
+        activeQrLinkTemplate = data.qrLink.trim();
+        await refreshUserDynamicQR(false);
+      } else {
+        // Static Uploaded Image QR Mode
+        $('userDisplayQR').src = data.qrImage;
+        if (data.decodedUpi) {
+          currentLiveUpiUri = buildFreshUpiUri(data.decodedUpi, currentAmount).uri;
+        } else {
+          const scanned = await decodeUpiFromImageBase64(data.qrImage);
+          if (scanned) currentLiveUpiUri = buildFreshUpiUri(scanned, currentAmount).uri;
+        }
+      }
+      animateSwap($('loadingScreen'), $('userPaymentFormSection'));
+    } else {
+      $('loadingScreen').innerHTML = "<p style='color:var(--bad);font-weight:600;font-size:16px;text-align:center;padding:20px'>This payment link has expired or is not valid.</p>";
+      handleErrorSound();
+    }
+  } catch (e) {
+    $('loadingScreen').innerHTML = "<p style='color:var(--bad);font-size:16px;text-align:center'>Could not load the payment. Refresh to try again.</p>";
+    handleErrorSound();
+  }
+}
+
+/* Direct Open in UPI App Button */
+$('openUpiAppBtn').addEventListener('click', () => {
+  handleClick();
+  if (activeQrLinkTemplate) {
+    const { uri } = buildFreshUpiUri(activeQrLinkTemplate, currentAmount);
+    currentLiveUpiUri = uri;
+  }
+  if (currentLiveUpiUri && currentLiveUpiUri.startsWith("upi://")) {
+    toast("Opening UPI App…");
+    window.location.href = currentLiveUpiUri;
+  } else {
+    toast("Please scan or download the QR above to pay.", "err");
+  }
+});
+
+/* ---------- UTR & Verification Flow ---------- */
+const utrEl = $('userUTR'), payBtn = $('userSubmitBtn'), emailEl = $('userEmail');
+utrEl.addEventListener('input', () => {
+  const before = utrEl.value.length;
+  utrEl.value = utrEl.value.replace(/\D/g, '').slice(0, 12);
+  const n = utrEl.value.length;
+  $('utrCount').innerText = n + '/12';
+  if (n > 0 && n >= before - 1) soundTick(n);
+  if (n === 12) { utrEl.classList.add('ok'); hapticLight(); soundReady(); }
+  else utrEl.classList.remove('ok');
+});
+
+const IC_CHECK = '<svg class="bi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg>';
+const IC_SHIELD = '<svg class="bi" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.2-2.8 7.8-7 10-4.2-2.2-7-5.8-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>';
+let payState = 'idle', procTimer = null;
+
+function setBtn(state, html){ payState = state; payBtn.dataset.state = state; payBtn.innerHTML = '<i class="fill"></i><span class="bl">' + html + '</span>'; }
+function lockFields(v){ emailEl.readOnly = v; utrEl.readOnly = v; }
+function swapLabel(t){
+  const el = payBtn.querySelector('.pl'); if (!el) return;
+  el.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-8px)'}],{duration:140,fill:'forwards'}).onfinish = () => {
+    el.textContent = t;
+    el.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],{duration:240,fill:'forwards',easing:'cubic-bezier(.22,1,.36,1)'});
+  };
+}
+function setIdle(){ clearInterval(procTimer); lockFields(false); setBtn('idle', IC_CHECK + 'I have paid'); $('payNote').textContent = 'Pay first, then enter your email and UTR.'; }
+function setReady(){ lockFields(false); setBtn('ready', IC_SHIELD + 'Click here to verify'); $('payNote').textContent = 'Details checked. Tap the button to verify.'; soundArm(); hapticMed(); }
+
+function startProcessing(){
+  const msgs = ['Checking your details…','Matching UTR format…','Locking the amount…','Almost ready…'];
+  let left = 5;
+  lockFields(true);
+  setBtn('proc', '<span class="spin"></span><span class="pl">' + msgs[0] + '</span><b class="cd">5s</b>');
+  $('payNote').textContent = 'Hold on, this takes 5 seconds.';
+  procTimer = setInterval(() => {
+    left--;
+    if (left <= 0) { clearInterval(procTimer); setReady(); return; }
+    const cd = payBtn.querySelector('.cd'); if (cd) cd.textContent = left + 's';
+    swapLabel(msgs[Math.min(5 - left, 3)]); soundWork(5 - left); hapticLight();
+  }, 1000);
+}
+
+[emailEl, utrEl].forEach(el => el.addEventListener('input', () => { if (payState === 'ready') setIdle(); }));
+
+$('userPaymentForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (payState === 'idle') {
+    const email = emailEl.value.trim(), utr = utrEl.value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { toast("Enter a valid email address.", 'err'); shake(emailEl); handleErrorSound(); return; }
+    if (!/^\d{12}$/.test(utr)) { toast("UTR must be exactly 12 digits.", 'err'); shake(utrEl); handleErrorSound(); return; }
+    handleClick(); startProcessing();
+  } else if (payState === 'ready') { handleClick(); verifyNow(); }
+});
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const vx = $('vx');
+function vxOpen(){
+  $('vxAmt').textContent = currentAmount; $('vxTitle').textContent = 'Verifying payment'; $('vxSub').textContent = 'Starting…';
+  [...$('vxSteps').children].forEach(li => li.className = '');
+  $('vxParts').innerHTML = ''; vx.dataset.s = 'load';
+  vx.classList.add('on'); void vx.offsetWidth; vx.classList.add('show'); vx.setAttribute('aria-hidden', 'false');
+  soundOpen(); hapticMed();
+}
+function vxClose(){ vx.classList.remove('show'); vx.setAttribute('aria-hidden', 'true'); setTimeout(() => vx.classList.remove('on'), 330); }
+function sparks(){
+  const box = $('vxParts'), cols = ['#1fd69a','#ffffff','#ffb938','#8f7bff','#7dffd4'];
+  for(let i = 0; i < 22; i++){
+    const e = document.createElement('i'), a = (i / 22) * Math.PI * 2 + Math.random() * .3, d = 88 + Math.random() * 70, z = 5 + Math.random() * 6;
+    e.style.cssText = `--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d}px;background:${cols[i % 5]};width:${z}px;height:${z}px;animation-delay:${Math.random() * .12}s`;
+    box.appendChild(e);
+  }
+  setTimeout(() => { box.innerHTML = ''; }, 1400);
+}
+async function verifyNow(){
+  const email = emailEl.value.trim(), utr = utrEl.value.trim();
+  lockFields(true);
+  setBtn('verify', '<span class="orbit"><i></i><i></i><i></i></span><span class="pl">Verifying…</span>');
+  $('payNote').textContent = '';
+  vxOpen();
+  const req = fetch(`${GAS_WEB_APP_URL}?utr=${encodeURIComponent(utr)}&amount=${encodeURIComponent(currentAmount)}&email=${encodeURIComponent(email)}`)
+    .then(r => r.json()).then(d => ({ ok: d.success === true })).catch(() => ({ ok: false, net: true }));
+  const lis = [...$('vxSteps').children], txt = ['Saving your email…', 'Matching your UTR…', 'Confirming the amount…'];
+  await sleep(450);
+  for(let i = 0; i < 3; i++){
+    lis[i].className = 'act'; $('vxSub').textContent = txt[i]; soundPing(i); hapticLight();
+    await sleep(i < 2 ? 850 : 650);
+    if(i < 2){ lis[i].className = 'done'; soundWork(i); }
+  }
+  const slow = setTimeout(() => { $('vxSub').textContent = 'Taking a bit longer. Keep this page open.'; }, 5000);
+  const r = await req; clearTimeout(slow);
+  if(r.ok){
+    lis[2].className = 'done'; soundStep();
+    $('rEmail').textContent = email; $('rUtr').textContent = utr;
+    $('rTime').textContent = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    await sleep(350);
+    $('vxTitle').textContent = 'Payment verified'; $('vxSub').textContent = 'Your access is unlocked.';
+    vx.dataset.s = 'ok'; sparks(); handleSuccessSound();
+    $('userPaymentFormSection').classList.add('hidden');
+  } else {
+    $('vxTitle').textContent = r.net ? 'No connection' : 'Payment not found';
+    $('vxSub').textContent = r.net ? 'Check your internet and try again.' : 'Pay first, then check your UTR and amount.';
+    vx.dataset.s = 'bad'; handleErrorSound();
+  }
+}
+$('vxRetry').addEventListener('click', () => { handleClick(); vxClose(); setIdle(); });
+setIdle();
+
+/* ---------- Download QR ---------- */
+async function downloadQR(){
+  const btn = $('dlQrBtn'), img = $('userDisplayQR'), txt = $('dlTxt');
+  if (!img.src || btn.classList.contains('busy')) return;
+  handleClick(); btn.classList.add('busy'); txt.textContent = 'Preparing…';
+  try {
+    const m = 48, w = img.naturalWidth || 600, h = img.naturalHeight || 600;
+    const c = document.createElement('canvas'); c.width = w + m * 2; c.height = h + m * 2;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, m, m, w, h);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'payment-qr-Rs' + currentAmount + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    await new Promise(r => setTimeout(r, 700));
+    btn.classList.replace('busy', 'saved'); txt.textContent = 'QR saved'; soundSave(); hapticMed(); toast('QR downloaded');
+  } catch (e) {
+    btn.classList.remove('busy'); txt.textContent = 'Download QR'; toast('Could not save the QR. Try again.', 'err'); handleErrorSound(); return;
+  }
+  setTimeout(() => { btn.classList.remove('saved'); txt.textContent = 'Download QR'; }, 2200);
+}
+$('dlQrBtn').addEventListener('click', downloadQR);
+
+/* button ripple */
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.btn'); if (!b) return;
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 1.6, x = document.createElement('span');
+  x.className = 'rip'; x.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+  b.appendChild(x); setTimeout(() => x.remove(), 700);
+});
+</script>
+</body>
+</html>
